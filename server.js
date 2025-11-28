@@ -1,122 +1,71 @@
-// File: backend/server.js
+require('dotenv').config();
 const express = require('express');
-const { MongoClient } = require('mongodb'); // Mengganti Mongoose dengan MongoClient
+const mongoose = require('mongoose');
 const cors = require('cors');
 
 const app = express();
+const PORT = process.env.PORT || 3000;
 
-// --- KONFIGURASI ENV ---
-// Variabel akan dibaca dari Vercel Environment Variables
-const MONGO_URI = process.env.MONGO_URI;
-const DB_NAME = process.env.DB_NAME || 'be_ats'; // Ambil DB_NAME dari ENV (jika ada)
-
-// GANTI DENGAN URL GITHUB PAGES ANDA YANG SEBENARNYA
-const CLIENT_URL = 'https://rizqiiqmal.github.io/leaftlet-fe/'; 
-
-// --- MIDDLEWARE ---
 app.use(cors(
     {
-        origin: CLIENT_URL,
-        // Methods: POST dan DELETE dibutuhkan untuk fungsionalitas CRUD
+        origin: 'https://rizqiiqmal.github.io', 
         methods: ['GET', 'POST', 'DELETE', 'OPTIONS'],
         allowedHeaders: ['Content-Type', 'Authorization']
     }
 ));
 app.use(express.json());
 
-// --- FUNGSI KONEKSI DATABASE ---
-// Koneksi client harus dibuat dan ditutup per request di lingkungan Serverless
-async function connectToDb() {
-    if (!MONGO_URI) {
-        throw new Error('MONGO_URI tidak dikonfigurasi. Periksa Vercel Environment Variables.');
-    }
-    const client = new MongoClient(MONGO_URI);
-    await client.connect();
-    return client;
-}
+const MONGO_URI = process.env.MONGO_URI || 'mongodb://localhost:27017/db_ats';
 
-// --- DEFINISI COLLECTION ---
-const COLLECTION_NAME = 'locations';
-const { ObjectId } = require('mongodb'); // Untuk menangani ID
+mongoose.connect(MONGO_URI)
+  .then(() => console.log('✅ MongoDB Terhubung!'))
+  .catch(err => console.error(err));
 
-// --- RUTE API ---
+const LocationSchema = new mongoose.Schema({
+    nama: String,
+    deskripsi: String, 
+    kategori: String,  
+    latitude: Number,
+    longitude: Number,
+    waktu: { type: Date, default: Date.now }
+});
 
-// 1. GET: Mengambil semua lokasi
+const Location = mongoose.model('Location', LocationSchema);
+
+
 app.get('/api/locations', async (req, res) => {
-    let client;
     try {
-        client = await connectToDb();
-        const db = client.db(DB_NAME);
-        const data = await db.collection(COLLECTION_NAME).find().toArray();
+        const data = await Location.find();
         res.json(data);
     } catch (error) {
-        console.error('Error GET:', error.message);
-        res.status(500).json({ message: 'Gagal mengambil data lokasi. ' + error.message });
-    } finally {
-        if (client) await client.close();
+        res.status(500).json({ message: error.message });
     }
 });
 
-// 2. POST: Menambahkan lokasi baru
 app.post('/api/locations', async (req, res) => {
     const { nama, deskripsi, kategori, latitude, longitude } = req.body;
 
-    // Data yang akan disimpan (menggunakan GeoJSON Point)
-    const lokasiBaru = {
-        nama,
-        deskripsi,
-        kategori,
-        location: { // GeoJSON Point: [Longitude, Latitude]
-            type: "Point",
-            coordinates: [parseFloat(longitude), parseFloat(latitude)]
-        },
-        waktu: new Date()
-    };
+    const lokasiBaru = new Location({
+        nama, deskripsi, kategori, latitude, longitude
+    });
 
-    let client;
     try {
-        client = await connectToDb();
-        const db = client.db(DB_NAME);
-        const result = await db.collection(COLLECTION_NAME).insertOne(lokasiBaru);
-        
-        // Mengembalikan objek yang disimpan, termasuk ID yang baru dibuat
-        res.status(201).json({ ...lokasiBaru, _id: result.insertedId });
+        const savedLocation = await lokasiBaru.save();
+        res.status(201).json(savedLocation);
     } catch (error) {
-        console.error('Error POST:', error.message);
-        res.status(400).json({ message: 'Gagal menyimpan lokasi baru. ' + error.message });
-    } finally {
-        if (client) await client.close();
+        res.status(400).json({ message: error.message });
     }
 });
 
-// 3. DELETE: Menghapus lokasi berdasarkan ID
 app.delete('/api/locations/:id', async (req, res) => {
-    let client;
     try {
-        client = await connectToDb();
-        const db = client.db(DB_NAME);
-        const result = await db.collection(COLLECTION_NAME).deleteOne({ _id: new ObjectId(req.params.id) });
-
-        if (result.deletedCount === 0) {
-            return res.status(404).json({ message: 'Lokasi tidak ditemukan.' });
-        }
-        
+        await Location.findByIdAndDelete(req.params.id);
         res.json({ message: 'Lokasi berhasil dihapus' });
     } catch (error) {
-        console.error('Error DELETE:', error.message);
-        res.status(500).json({ message: 'Gagal menghapus lokasi. ' + error.message });
-    } finally {
-        if (client) await client.close();
+        res.status(500).json({ message: error.message });
     }
 });
 
-// Rute untuk memeriksa status server
-app.get('/', (req, res) => {
-    res.send('Vercel Express API is running.');
+app.listen(PORT, () => {
+    console.log(`🚀 Server update berjalan di port ${PORT}`);
 });
-
-
-// !!! PENTING: Ekspor aplikasi agar Vercel bisa menjalankan sebagai Serverless Function !!!
-module.exports = app;
-
-// Kode app.listen() DIHAPUS karena Vercel menanganinya
