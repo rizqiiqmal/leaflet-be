@@ -1,14 +1,13 @@
 {
-  "name": "my-express-api",
+  "name": "nama-proyek-backend",
   "version": "1.0.0",
-  "description": "Express.js Serverless API for Leaflet",
-  "main": "api/index.js",
+  "main": "server.js",
   "scripts": {
-    "start": "node api/index.js"
+    "start": "node server.js"
   },
   "dependencies": {
-    "cors": "^2.8.5",
     "express": "^4.19.2",
+    "cors": "^2.8.5",
     "mongodb": "^6.5.0"
   }
 }
