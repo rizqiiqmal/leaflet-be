@@ -66,6 +66,4 @@ app.delete('/api/locations/:id', async (req, res) => {
     }
 });
 
-app.listen(PORT, () => {
-    console.log(`🚀 Server update berjalan di port ${PORT}`);
-});
+module.exports = app;
